@@ -1,0 +1,12 @@
+[package]
+name = "edge_optimizer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "edge_optimizer"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "1"
