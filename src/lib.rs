@@ -6,3 +6,6 @@ pub mod manager;
 
 #[cfg(windows)]
 pub mod hp;
+
+#[cfg(windows)]
+pub mod windows_power;

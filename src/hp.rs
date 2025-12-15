@@ -99,12 +99,21 @@ fn load_hp_library() -> Result<(), HpDriverError> {
         return Ok(());
     }
 
-    // Try loading from system directories or HP OMEN install path
+    // Try loading from system directories, HP OMEN, HP Victus, and HP Support Framework paths
     let possible_paths = [
         "NativeRpcClient.dll",
+        // HP Support Framework (HP Victus and other HP systems)
+        "C:\\Program Files (x86)\\HP\\HP Support Framework\\Modules\\NativeRpcClient.dll",
+        "C:\\Program Files\\HP\\HP Support Framework\\Modules\\NativeRpcClient.dll",
+        // HP OMEN Command Center
         "C:\\Program Files\\HP\\OMEN\\NativeRpcClient.dll",
         "C:\\Program Files (x86)\\HP\\OMEN\\NativeRpcClient.dll",
         "C:\\Program Files\\OMEN\\NativeRpcClient.dll",
+        // HP OMEN Gaming Hub
+        "C:\\Program Files\\HP\\OMEN Gaming Hub\\NativeRpcClient.dll",
+        "C:\\Program Files (x86)\\HP\\OMEN Gaming Hub\\NativeRpcClient.dll",
+        "C:\\Program Files\\HP\\HPOmenGamingHub\\NativeRpcClient.dll",
+        "C:\\Program Files (x86)\\HP\\HPOmenGamingHub\\NativeRpcClient.dll",
     ];
 
     for path in &possible_paths {
@@ -118,11 +127,12 @@ fn load_hp_library() -> Result<(), HpDriverError> {
     }
 
     Err(HpDriverError::DllNotFound(
-        "NativeRpcClient.dll not found in known HP OMEN paths. Ensure HP OMEN Command Center is installed.".into()
+        "NativeRpcClient.dll not found in known HP paths. Ensure HP Support Framework, HP OMEN Gaming Hub, or HP OMEN Command Center is installed.".into()
     ))
 }
 
 /// HP-specific driver implementation using NativeRpcClient.dll.
+/// Works with HP OMEN and HP Victus gaming laptops.
 pub struct HpOmenDriver;
 
 impl HpOmenDriver {

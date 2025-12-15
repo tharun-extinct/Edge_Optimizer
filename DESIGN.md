@@ -1,6 +1,6 @@
 # Edge Optimizer Fan Control
 
-A Rust-based game optimizer that sets fan speed to maximum via OEM thermal profiles on Windows systems. Currently implements HP OMEN support through `NativeRpcClient.dll`.
+A Rust-based game optimizer that sets fan speed to maximum via OEM thermal profiles on Windows systems. Currently implements **HP OMEN and HP Victus** support through `NativeRpcClient.dll`.
 
 ## Architecture
 
@@ -16,26 +16,35 @@ A Rust-based game optimizer that sets fan speed to maximum via OEM thermal profi
 - `manager::FanManager`: Orchestrates profile selection with safety policy
 - `model`: Data types for profiles, capabilities, telemetry, and safety policy
 
-### HP OMEN Implementation
-Uses dynamic loading of `NativeRpcClient.dll` (bundled with HP OMEN Command Center):
+### HP OMEN & Victus Implementation
+Uses dynamic loading of `NativeRpcClient.dll` (bundled with HP OMEN Gaming Hub or OMEN Command Center):
 - **Thermal Profiles**: Default (0), Performance (1), Cool (2), Quiet (3), Extreme/Max (4)
 - **DLL Search Paths**:
   - `NativeRpcClient.dll` (current directory or system PATH)
   - `C:\Program Files\HP\OMEN\`
   - `C:\Program Files (x86)\HP\OMEN\`
   - `C:\Program Files\OMEN\`
+  - `C:\Program Files\HP\OMEN Gaming Hub\` (HP Victus)
+  - `C:\Program Files (x86)\HP\OMEN Gaming Hub\` (HP Victus)
+  - `C:\Program Files\HP\HPOmenGamingHub\`
+  - `C:\Program Files (x86)\HP\HPOmenGamingHub\`
 - **Function Bindings** (inferred, may vary by version):
   - `SetThermalProfile(profile: u32) -> i32`
   - `GetThermalProfile() -> i32`
   - `GetFanSpeed() -> i32` (optional telemetry)
-  - `GetSystemTemperature() -> i32` (optional telemetry)
+  - `GetSystemTemperatureanonymous() -> i32` (optional telemetry)
+
+**Note**: HP Victus laptops use the OMEN Gaming Hub (rebranded OMEN Command Center) for thermal management and share the same API.
 
 ## Requirements
 
-### For HP OMEN Systems
-1. **HP OMEN Command Center** must be installed (provides NativeRpcClient.dll)
-2. **Administrator privileges** may be required depending on system configuration
-3. **Windows 10/11** (x64)
+### For HP OMEN & Victus Systems
+1. **HP OMEN Gaming Hub** (recommended for all HP gaming laptops including Victus)
+   - Available from Microsoft Store or HP website
+   - Provides NativeRpcClient.dll
+2. **Alternative**: HP OMEN Command Center (older OMEN systems)
+3. **Administrator privileges** may be required depending on system configuration
+4. **Windows 10/11** (x64)
 
 ### For Other OEMs
 - Implement `FanDriver` trait for your OEM's API
@@ -74,16 +83,19 @@ Current telemetry:
   Temperature: 68.0°C
 ```
 
-### Sample Output (Not HP OMEN)
+### Sample Output (Not HP OMEN/Victus)
 ```
 Edge Optimizer - Max Fan Control
 =================================
 
-✗ Failed to initialize HP OMEN driver: NativeRpcClient.dll not found or failed to load
+✗ Failed to initialize HP driver: NativeRpcClient.dll not found or failed to load
 Troubleshooting:
-  1. Ensure you are running on an HP OMEN system
-  2. Install HP OMEN Command Center
-  3. Run this program with administrator privileges
+  1. Ensure you are running on an HP OMEN or HP Victus system
+  2. Install HP OMEN Gaming Hub (available from Microsoft Store or HP website)
+  3. For older systems: Install HP OMEN Command Center
+  4. Run this program with administrator privileges
+
+Note: HP Victus laptops use the OMEN Gaming Hub for thermal management.
 ```
 
 ## Safety Policy
@@ -125,10 +137,10 @@ To add support for another manufacturer:
 4. Update `max_fan.rs` to detect and select the appropriate driver
 
 ## Known Limitations
-- **HP OMEN only**: Other OEMs require additional drivers
+- **HP OMEN & Victus only**: Other OEMs require additional drivers
 - **Windows only**: Linux/macOS have different fan control mechanisms
 - **Profile-based**: Cannot set exact RPM values, only predefined profiles
-- **DLL dependency**: Requires HP software stack to be installed
+- **DLL dependency**: Requires HP OMEN Gaming Hub or OMEN Command Center to be installed
 
 ## Next Steps
 1. Implement Dell/Alienware support via Dell Command | Monitor API
