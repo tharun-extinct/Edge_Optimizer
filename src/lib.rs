@@ -3,3 +3,6 @@
 pub mod model;
 pub mod driver;
 pub mod manager;
+
+#[cfg(windows)]
+pub mod hp;

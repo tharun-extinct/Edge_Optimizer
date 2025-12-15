@@ -1,28 +1,139 @@
-# Edge Optimizer Fan Control (Logic Only)
+# Edge Optimizer Fan Control
 
-This crate wires the fan-profile logic without any UI. It assumes a minimal, signed kernel driver that exposes whitelisted ACPI fan-profile methods per OEM. No EC register pokes are used.
+A Rust-based game optimizer that sets fan speed to maximum via OEM thermal profiles on Windows systems. Currently implements HP OMEN support through `NativeRpcClient.dll`.
 
-## Components
-- `driver::FanDriver`: trait boundary to the kernel/ACPI-facing driver. Includes capability discovery, current profile, set profile, and telemetry.
-- `manager::FanManager`: orchestrates selecting the max profile, applies safety policy, optionally verifies ramp via telemetry, and surfaces errors.
-- `model`: data types for profiles, capabilities, telemetry, and safety policy.
+## Architecture
 
-## Safety and Scope
-- Only OEM-whitelisted ACPI profile methods should be invoked by the driver; unknown platforms must return `Unsupported`.
-- The Rust core performs best-effort verification (RPM delta, temperature threshold) when telemetry exists; otherwise it still defers safety to the driver.
-- No UI and no persistence are included; this is a library for higher layers to call.
+### Safety-First Design
+- **No EC register manipulation**: Uses OEM-provided APIs only
+- **Profile-based control**: Sets thermal profiles (not raw fan speeds)
+- **Graceful degradation**: Returns "unsupported" on unknown hardware
+- **Telemetry validation**: Optional RPM/temp checks after profile changes
 
-## Usage Sketch
-```rust
-use edge_optimizer::{driver::UnsupportedDriver, manager::FanManager, model::MaxFanPolicy};
+### Components
+- `driver::FanDriver`: Abstract trait for OEM driver implementations
+- `hp::HpOmenDriver`: HP OMEN implementation using NativeRpcClient.dll FFI
+- `manager::FanManager`: Orchestrates profile selection with safety policy
+- `model`: Data types for profiles, capabilities, telemetry, and safety policy
 
-let driver = UnsupportedDriver; // replace with real driver impl
-let policy = MaxFanPolicy::default();
-let mgr = FanManager::new(driver, policy);
-let _ = mgr.set_max_profile();
+### HP OMEN Implementation
+Uses dynamic loading of `NativeRpcClient.dll` (bundled with HP OMEN Command Center):
+- **Thermal Profiles**: Default (0), Performance (1), Cool (2), Quiet (3), Extreme/Max (4)
+- **DLL Search Paths**:
+  - `NativeRpcClient.dll` (current directory or system PATH)
+  - `C:\Program Files\HP\OMEN\`
+  - `C:\Program Files (x86)\HP\OMEN\`
+  - `C:\Program Files\OMEN\`
+- **Function Bindings** (inferred, may vary by version):
+  - `SetThermalProfile(profile: u32) -> i32`
+  - `GetThermalProfile() -> i32`
+  - `GetFanSpeed() -> i32` (optional telemetry)
+  - `GetSystemTemperature() -> i32` (optional telemetry)
+
+## Requirements
+
+### For HP OMEN Systems
+1. **HP OMEN Command Center** must be installed (provides NativeRpcClient.dll)
+2. **Administrator privileges** may be required depending on system configuration
+3. **Windows 10/11** (x64)
+
+### For Other OEMs
+- Implement `FanDriver` trait for your OEM's API
+- Examples: Dell Command, Lenovo Vantage, ASUS Armoury Crate
+- Follow the same safety pattern: profile-based, no EC writes
+
+## Usage
+
+### Running the CLI
+```bash
+# Build release binary
+cargo build --release --bin max_fan
+
+# Run (requires HP OMEN Command Center)
+.\target\release\max_fan.exe
 ```
 
+### Sample Output (Success)
+```
+Edge Optimizer - Max Fan Control
+=================================
+
+✓ Fan control supported
+Available profiles:
+  - Default (id=0)
+  - Performance (id=1)
+  - Cool (id=2)
+  - Quiet (id=3)
+  - Extreme (Max) (id=4) (MAX)
+
+Setting fan to maximum...
+✓ Successfully set fan profile to max (id=4)
+
+Current telemetry:
+  Fan speed: 4800 RPM
+  Temperature: 68.0°C
+```
+
+### Sample Output (Not HP OMEN)
+```
+Edge Optimizer - Max Fan Control
+=================================
+
+✗ Failed to initialize HP OMEN driver: NativeRpcClient.dll not found or failed to load
+Troubleshooting:
+  1. Ensure you are running on an HP OMEN system
+  2. Install HP OMEN Command Center
+  3. Run this program with administrator privileges
+```
+
+## Safety Policy
+
+Default `MaxFanPolicy`:
+- **Settle timeout**: 1500ms wait after profile change
+- **Min RPM delta**: 500 RPM increase expected (if telemetry available)
+- **Max safe temp**: 95°C threshold (reverts if exceeded)
+
+Validation is best-effort; if telemetry is unavailable, the manager trusts the driver's return code.
+
+## Code Structure
+```
+src/
+├── lib.rs              # Crate root
+├── driver.rs           # FanDriver trait + UnsupportedDriver
+├── hp.rs               # HP OMEN-specific driver (Windows only)
+├── manager.rs          # FanManager orchestration
+├── model.rs            # Data types
+└── bin/
+    └── max_fan.rs      # CLI entry point
+```
+
+## Extending to Other OEMs
+
+To add support for another manufacturer:
+
+1. Create `src/<oem>.rs` (e.g., `src/dell.rs`, `src/lenovo.rs`)
+2. Implement `FanDriver` trait:
+   ```rust
+   pub struct DellDriver;
+   impl FanDriver for DellDriver {
+       fn capabilities(&self) -> Result<FanCapabilities, DriverError> { ... }
+       fn set_profile(&self, profile: ProfileId) -> Result<(), DriverError> { ... }
+       // ...
+   }
+   ```
+3. Use OEM's documented API (WMI, CLI tool, or native DLL)
+4. Update `max_fan.rs` to detect and select the appropriate driver
+
+## Known Limitations
+- **HP OMEN only**: Other OEMs require additional drivers
+- **Windows only**: Linux/macOS have different fan control mechanisms
+- **Profile-based**: Cannot set exact RPM values, only predefined profiles
+- **DLL dependency**: Requires HP software stack to be installed
+
 ## Next Steps
-- Implement the actual Windows KMDF driver that issues ACPI method evals from a whitelist.
-- Populate an OEM capability database mapping DMI → ACPI method + profile ids.
-- Expose a small service/CLI that calls this crate and reports status to the user.
+1. Implement Dell/Alienware support via Dell Command | Monitor API
+2. Add Lenovo Legion support via Lenovo Vantage SDK
+3. Add ASUS ROG support via Armoury Crate SDK or ATKD ACPI methods
+4. Add MSI Dragon Center support via MSI SDK
+5. Create auto-detection logic to choose the correct driver at runtime
+6. Build GUI wrapper (e.g., with `iced` or `egui`)
