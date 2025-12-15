@@ -8,4 +8,7 @@ pub mod manager;
 pub mod hp;
 
 #[cfg(windows)]
+pub mod hp_wmi;
+
+#[cfg(windows)]
 pub mod windows_power;
